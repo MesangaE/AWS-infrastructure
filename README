@@ -1,0 +1,127 @@
+# steps on aws infrastructure. In this project we will launch an instance which we will use as a master server for ansible and write a playbook to configure a webserver which will run our application as a docker container with the nginx server acting as a proxy server
+step 1. launch 2 ubuntu 20.04 instances and attach a rolet to one and tag one master and the other web-server
+step 2. open ssh port for the both instances
+step 3. update and install ansible on the server with a role
+
+1_ sudo apt update -y
+
+2_ Install Ansible 
+ sudo apt install -y ansible 
+
+3_ Install Python 
+sudo apt install python-is-python3 
+
+4_ Install PIP
+ sudo apt-get install python3-pip -y 
+
+5_ Install Boto
+ sudo pip3 install boto 
+
+6_ Install Boto3 
+sudo pip3 install boto3 
+
+7_ Install Ansible Dynamic Inventory Plugin 
+ansible-galaxy collection install amazon.aws
+
+8_ Create a file for Ansible Dynamic Inventory Plugin 
+sudo vi aws_ec2.yaml. Cat file to see if it has been saved.
+
+9-configure file with this script 
+
+plugin: aws_ec2
+ regions: 
+   - us-west-1 
+filters: 
+  tag:Env: 
+    - dev 
+
+10_ In the  /etc/ansible/ansible.cfg, 
+ uncomment “sudo_user” and "host_key_checking" 
+
+sudo vi /etc/ansible/ansible.cfg        
+
+11_ To test dynamic Inventory 
+
+ansible-inventory -i aws_ec2.yaml --list 
+
+12_ Create the .pem key file which is used for Ansible master to log into the web-server and share it. #This key will use the public key file to connect to the instance and not the private key#
+
+ssh-keygen -t rsa -b 4096 -f [your-keypair-name for master-node]
+ssh-keygen -t rsa -b 4096 -f master-key.pem
+-t type of the key
+-b the bit
+-f the file
+
+ #when you run the command press enter and enter again to create the key. Then do an ls -al you #see that it has created a .pem.pub file. Then cat into the .pem and the .pem.pub files and #you can see the keys
+
+13_change key permissions for the private key so that users have only read permissions
+chmod 400 your-key-name 
+
+14_ copy the contents of pub key on the terminal (with .pub extension) to the this file "~/.ssh/authorized_keys" in both nodes 1 and 2
+
+sudo vi ~/.ssh/authorized_keys
+
+16_ test authentication with nodes
+ ansible aws_ec2 -i aws_ec2.yaml -m ping --private-key=your-key-name --user ec2-user 
+(name of the master private keypair created at the console not the .pub one)
+
+ansible aws_ec2 -i aws_ec2.yaml -m ping --private-key=master-key.pem --user ec2-user 
+
+17_ Run below command to install git on Ansible nodes using dynamic inventory from the master 
+sudo ansible aws_ec2 -i aws_ec2.yaml -m yum -a 'name=git state=present' --private-key=your-key-name --become --user ec2-user
+
+sudo ansible aws_ec2 -i aws_ec2.yaml -m yum -a 'name=git state=present' --private-key=master-key.pem --become --user ec2-user
+
+step 4. Write a Playbook
+
+
+sudo vi playbook.yaml 
+
+
+---
+- hosts: all
+  become: true
+  task: update instance
+  task: install docker
+    - name: Add Docker GPG apt Key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker Repository
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu focal stable
+        state: present
+
+    - name: Update apt and install docker-ce
+      apt:
+        name: docker-ce
+        state: latest
+        update_cache: true
+
+    - name: Install Docker Module for Python
+      pip:
+        name: docker
+
+  tasks: 
+    - name: create build directory
+      file:
+        path: /root/webapp-dockerfile
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+    - name: copy Dockerfile
+      copy:
+        src: ./Dockerfile
+        dest: /root/demo-dockerfile/Dockerfile
+        owner: root
+        group: root
+        mode: '0644'
+    - name: build container image
+      docker_image:
+        name: democontainer:v1.0
+        build:
+          path: /root/demo-dockerfile
+          source: build
+        state: present
