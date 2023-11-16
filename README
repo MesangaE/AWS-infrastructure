@@ -1,4 +1,5 @@
 # steps on aws infrastructure. In this project we will launch an instance which we will use as a master server for ansible and write a playbook to configure a webserver which will run our application as a docker container with the nginx server acting as a proxy server
+#if we have to use terraform then we would have to attach a role to the ansible server since it will create the image and push the image to ecr
 step 1. launch 2 ubuntu 20.04 instances and attach a rolet to one and tag one master and the other web-server
 step 2. open ssh port for the both instances
 step 3. update and install ansible on the server with a role
@@ -125,3 +126,10 @@ sudo vi playbook.yaml
           path: /root/demo-dockerfile
           source: build
         state: present
+
+  #Pushing image to ECR
+  # 1. create a repo with ECR
+  #2. select the rep and click on view commands
+  #before building the image authenticate with the commands
+  #and then build and push image
+   aws cli has to be installed on the server
